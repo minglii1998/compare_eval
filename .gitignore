@@ -1,0 +1,7 @@
+./*.json
+
+logs
+scripts
+workspace
+
+trained_models
