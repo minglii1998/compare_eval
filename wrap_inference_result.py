@@ -8,14 +8,14 @@ def parse_args():
     parser.add_argument("--fname1", type=str, default='')
     parser.add_argument("--fname2", type=str, default='')
     parser.add_argument("--save_name", type=str, default='') # a vs b format
-
+    parser.add_argument("--max_length", type=int, default=2048)
     args = parser.parse_args()
     return args
 
 args = parse_args()
 
 print('args.dataset_name',args.dataset_name)
-f_name = args.dataset_name+'_0_1024.json'
+f_name = args.dataset_name+'_0_' + str(args.max_length) + '.json'
 args.fname1 = os.path.join(args.fname1,f_name)
 args.fname2 = os.path.join(args.fname2,f_name)
 print('args.fname1',args.fname1)

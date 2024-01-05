@@ -7,6 +7,8 @@ review_home_path = 'logs/xxx1-VSxxx2'
 datasets = ['Vicuna','Koala','WizardLM','SInstruct','LIMA']
 # datasets = ['Vicuna','Koala','WizardLM','SInstruct']
 
+using_gpt4 = True
+
 save_name = review_home_path.split('/')[-1]
 
 key1, key2 = save_name.split('-VS-')[0],save_name.split('-VS-')[1]
@@ -87,11 +89,13 @@ def get_scores_all(pure_data):
 for dataset in datasets:
     review_path = ''
     for root, ds, fs in os.walk(review_home_path):
-            for f in fs:
+        for f in fs:
+            if using_gpt4:
+                if 'reviews_gpt4' in f and f.endswith('.json') and dataset.lower() in f:
+                    review_path = os.path.join(root, f)
+            else:
                 if 'reviews' in f and f.endswith('.json') and dataset.lower() in f:
                     review_path = os.path.join(root, f)
-                # if 'reviews_gpt4' in f and f.endswith('.json') and dataset.lower() in f:
-                #     review_path = os.path.join(root, f)
     with open(review_path, "r") as f:
         review_data = json.load(f)
     pure_data = review_data['data']
