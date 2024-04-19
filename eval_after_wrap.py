@@ -165,6 +165,7 @@ if __name__ == "__main__":
         batch_size = args.batch_size
         while(i<len(message_list)):
             token_limit_in_current_batch = min(args.max_tokens,4070-max(token_len_list[i:i+batch_size]))
+            token_limit_in_current_batch = max(token_limit_in_current_batch, 10)
             try:
                 batch_predictions = asyncio.run(
                     dispatch_openai_requests(
@@ -188,6 +189,14 @@ if __name__ == "__main__":
                 print("error number: ", error)
                 time.sleep(wait_base)
                 wait_base = wait_base*2
+                if batch_size == 1 and retry > 2:
+                    print("Retry too many times, continue.")
+                    batch_predictions_fake = [None for _ in range(batch_size)]
+                    predictions += batch_predictions_fake
+                    retry = 0
+                    i += batch_size
+                    pbar.update(batch_size)
+                    continue
         pbar.close()
         predictions_all.append(predictions)
 
@@ -200,8 +209,12 @@ if __name__ == "__main__":
         ans2_win_idsx = [0 for _ in range(total_len)]
         predictions = predictions_all[reverse]
         for idx, prediction in enumerate(predictions):
-            review = prediction['choices'][0]['message']['content']
-            scores = parse_score(review)
+            if prediction is None:
+                review = 'None'
+                scores = [0, 0]
+            else:
+                review = prediction['choices'][0]['message']['content']
+                scores = parse_score(review)
             review_key = 'review' if not reverse else 'review_reverse'
             scores_key = 'scores' if not reverse else 'scores_reverse'
             qa_jsons[idx][review_key] = review

@@ -6,3 +6,5 @@ workspace
 
 trained_models*
 other_results
+
+human_eval*
