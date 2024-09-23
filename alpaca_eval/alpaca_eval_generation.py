@@ -1,4 +1,5 @@
 from transformers import LlamaTokenizer, LlamaForCausalLM, set_seed
+from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed
 import torch
 import argparse
 import json
@@ -47,6 +48,39 @@ If a question does not make any sense, or is not factually coherent, explain why
 """)
 }
 
+PROMPT_DICT_PHI = { 
+    "prompt_input": (
+"""<|system|>
+You are a helpful assistant.<|end|>
+<|user|>\n{instruction}\nInput:\n{input}<|end|>\n<|assistant|>
+"""),
+    "prompt_no_input": (
+"""<|system|>
+You are a helpful assistant.<|end|>
+<|user|>\n{instruction}<|end|>\n<|assistant|>
+""")
+}
+
+PROMPT_DICT_GEMMA = { 
+    "prompt_input": (
+"""<start_of_turn>user
+{instruction}\nInput:\n{input}<end_of_turn>
+<start_of_turn>model
+"""),
+    "prompt_no_input": (
+"""<start_of_turn>user
+{instruction}<end_of_turn>
+<start_of_turn>model
+""")
+}
+
+PROMPT_DICT_LLAMA3 = { 
+    "prompt_input": (
+"""<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{instruction}\nInput:\n{input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"""),
+    "prompt_no_input": (
+"""<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{instruction}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n""")
+}
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Finetune a transformers model on a summarization task")
     parser.add_argument(
@@ -90,8 +124,8 @@ def main():
     if args.save_dir != '':
         os.makedirs(args.save_dir)
 
-    model = LlamaForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto", cache_dir="../cache/")
-    tokenizer = LlamaTokenizer.from_pretrained(args.model_name_or_path, device_map="auto", cache_dir="../cache/")
+    model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto", cache_dir="../cache/")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, device_map="auto", cache_dir="../cache/")
 
     # model.to(device)
     model.eval()
@@ -104,6 +138,12 @@ def main():
         prompt_no_input = PROMPT_DICT_VICUNA["prompt_no_input"]
     elif args.prompt == 'llama2':
         prompt_no_input = PROMPT_DICT_LLAMA2["prompt_no_input"]
+    elif args.prompt == 'phi':
+        prompt_no_input = PROMPT_DICT_PHI["prompt_no_input"]
+    elif args.prompt == 'gemma':
+        prompt_no_input = PROMPT_DICT_GEMMA["prompt_no_input"]
+    elif args.prompt == 'llama3':
+        prompt_no_input = PROMPT_DICT_LLAMA3["prompt_no_input"]
     
     dataset_path = 'alpaca_eval/alpaca_eval_data.jsonl'
     prompt_key = 'instruction'
@@ -124,7 +164,7 @@ def main():
                 top_p=args.top_p,
                 do_sample=args.do_sample
                 )
-            outputs = tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+            outputs = tokenizer.batch_decode(generate_ids, skip_special_tokens=False, clean_up_tokenization_spaces=False)[0]
 
             new_point = {}
             new_point["dataset"] = point["dataset"]
@@ -135,8 +175,14 @@ def main():
                 new_point["output"] = outputs.split("ASSISTANT:")[1]
             elif args.prompt in ['llama2']:
                 new_point["output"] = outputs.split("[/INST]")[1]
-            new_point["generator"] = args.model_name_tag
+            elif args.prompt in ['phi']:
+                new_point['output'] = outputs.split("<|assistant|>")[1]
+            elif args.prompt in ['gemma']:
+                new_point['output'] = outputs.split("<start_of_turn>model")[1]
+            elif args.prompt in ['llama3']:
+                new_point['output'] = outputs.split("<|start_header_id|>assistant<|end_header_id|>")[1]
 
+            new_point["generator"] = args.model_name_tag
             results.append(new_point)
 
     if args.save_dir != '':

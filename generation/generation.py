@@ -85,6 +85,39 @@ You are Orca, an AI language model created by Microsoft. You are a cautious assi
 """)
 }
 
+PROMPT_DICT_PHI = { 
+    "prompt_input": (
+"""<|system|>
+You are a helpful assistant.<|end|>
+<|user|>\n{instruction}\nInput:\n{input}<|end|>\n<|assistant|>
+"""),
+    "prompt_no_input": (
+"""<|system|>
+You are a helpful assistant.<|end|>
+<|user|>\n{instruction}<|end|>\n<|assistant|>
+""")
+}
+
+PROMPT_DICT_GEMMA = { 
+    "prompt_input": (
+"""<start_of_turn>user
+{instruction}\nInput:\n{input}<end_of_turn>
+<start_of_turn>model
+"""),
+    "prompt_no_input": (
+"""<start_of_turn>user
+{instruction}<end_of_turn>
+<start_of_turn>model
+""")
+}
+
+PROMPT_DICT_LLAMA3 = { 
+    "prompt_input": (
+"""<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{instruction}\nInput:\n{input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"""),
+    "prompt_no_input": (
+"""<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{instruction}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n""")
+}
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Finetune a transformers model on a summarization task")
     parser.add_argument(
@@ -126,8 +159,8 @@ def main():
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto", cache_dir="../cache/")
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, device_map="auto", cache_dir="../cache/")
+    model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, device_map="auto")
 
     # model.to(device)
     model.eval()
@@ -150,6 +183,15 @@ def main():
     elif args.prompt == 'orca':
         prompt_input = PROMPT_DICT_ORCA["prompt_input"]
         prompt_no_input = PROMPT_DICT_ORCA["prompt_no_input"]
+    elif args.prompt == 'phi':
+        prompt_input = PROMPT_DICT_PHI["prompt_input"]
+        prompt_no_input = PROMPT_DICT_PHI["prompt_no_input"]
+    elif args.prompt == 'gemma':
+        prompt_input = PROMPT_DICT_GEMMA["prompt_input"]
+        prompt_no_input = PROMPT_DICT_GEMMA["prompt_no_input"]
+    elif args.prompt == 'llama3':
+        prompt_input = PROMPT_DICT_LLAMA3["prompt_input"]
+        prompt_no_input = PROMPT_DICT_LLAMA3["prompt_no_input"]
     
     if(args.dataset_name=="vicuna"):
         dataset_path = './test_data/vicuna_test_set.jsonl'
@@ -188,7 +230,7 @@ def main():
             inputs = tokenizer(prompt, return_tensors="pt")
             input_ids = inputs.input_ids.to(device)
             generate_ids = model.generate(input_ids, max_length=args.max_length)
-            outputs = tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+            outputs = tokenizer.batch_decode(generate_ids, skip_special_tokens=False, clean_up_tokenization_spaces=False)[0]
             point['raw_output'] = outputs
             if args.prompt in ['alpaca','wiz']:
                 point['response'] = outputs.split("Response:")[1]
@@ -200,7 +242,12 @@ def main():
                 point['response'] = outputs.split("<|assistant|>")[1]
             elif args.prompt in ['orca']:
                 point['response'] = outputs.split("<|im_start|>assistant")[1]
-
+            elif args.prompt in ['phi']:
+                point['response'] = outputs.split("<|assistant|>")[1]
+            elif args.prompt in ['gemma']:
+                point['response'] = outputs.split("<start_of_turn>model")[1]
+            elif args.prompt in ['llama3']:
+                point['response'] = outputs.split("<|start_header_id|>assistant<|end_header_id|>")[1]
             results.append(point)
 
     if args.save_dir == '':
